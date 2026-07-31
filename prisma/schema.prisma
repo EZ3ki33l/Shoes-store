@@ -1,8 +1,6 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Get a free hosted Postgres database in seconds: `npx create-db`
-
+// Schéma de données pour la boutique de chaussures.
+// L'authentification est déléguée à Clerk : `User` ne fait que synchroniser
+// le profil métier (rôle, coordonnées) via `clerkId`, aucun mot de passe ici.
 generator client {
   provider = "prisma-client"
   output   = "../generated/prisma"
@@ -10,4 +8,497 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+}
+
+// ============================================================
+// UTILISATEURS & ADRESSES
+// ============================================================
+
+enum Role {
+  CUSTOMER
+  ADMIN
+}
+
+enum OrderStatus {
+  PENDING
+  PAID
+  PROCESSING
+  SHIPPED
+  DELIVERED
+  CANCELLED
+  REFUNDED
+}
+
+enum PaymentStatus {
+  PENDING
+  PROCESSING
+  REQUIRES_ACTION // ex: authentification 3D Secure
+  SUCCEEDED
+  FAILED
+  CANCELED
+  REFUNDED
+}
+
+enum AddressType {
+  SHIPPING
+  BILLING
+}
+
+// Profil métier lié à un utilisateur Clerk (voir `clerkId`).
+model User {
+  id               String   @id @default(cuid())
+  clerkId          String   @unique // lien vers l'utilisateur Clerk
+  email            String   @unique
+  firstName        String?
+  lastName         String?
+  phone            String?
+  role             Role     @default(CUSTOMER)
+  stripeCustomerId String?  @unique // id du Customer Stripe (cus_xxx)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  addresses      Address[]
+  orders         Order[]
+  reviews        Review[]
+  cart           Cart?
+  wishlist       WishlistItem[]
+  stockMovements StockMovement[]
+  returns        Return[]
+  notifications  Notification[]
+  subscriber     Subscriber?
+}
+
+// Carnet d'adresses de l'utilisateur. Une fois utilisée dans une commande,
+// son contenu est dupliqué dans `Order` (voir plus bas) pour ne pas réécrire
+// l'historique si l'utilisateur modifie ou supprime l'adresse par la suite.
+model Address {
+  id         String      @id @default(cuid())
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId     String
+  type       AddressType @default(SHIPPING)
+  fullName   String
+  line1      String
+  line2      String?
+  city       String
+  postalCode String
+  country    String
+  phone      String?
+  isDefault  Boolean     @default(false)
+  createdAt  DateTime    @default(now())
+
+  ordersShipping Order[] @relation("ShippingAddress")
+  ordersBilling  Order[] @relation("BillingAddress")
+
+  @@index([userId])
+}
+
+// ============================================================
+// CATALOGUE
+// ============================================================
+
+model Brand {
+  id       String    @id @default(cuid())
+  name     String    @unique
+  slug     String    @unique
+  logoUrl  String?
+  products Product[]
+}
+
+// Auto-relation pour supporter des sous-catégories (ex: "Running" sous "Sport").
+model Category {
+  id       String     @id @default(cuid())
+  name     String     @unique
+  slug     String     @unique
+  parent   Category?  @relation("CategoryToSub", fields: [parentId], references: [id])
+  parentId String?
+  children Category[] @relation("CategoryToSub")
+  products Product[]
+}
+
+// Fiche produit générique (un modèle de chaussure). Le stock et le prix réel
+// se gèrent au niveau de `ProductVariant` (une taille + une couleur).
+model Product {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  description String?
+  basePrice   Decimal  @db.Decimal(10, 2)
+  isPublished Boolean  @default(true)
+  brand       Brand    @relation(fields: [brandId], references: [id])
+  brandId     String
+  category    Category @relation(fields: [categoryId], references: [id])
+  categoryId  String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  variants     ProductVariant[]
+  images       ProductImage[]
+  reviews      Review[]
+  cartItems    CartItem[]
+  orderItems   OrderItem[]
+  wishlistedBy WishlistItem[]
+
+  @@index([brandId])
+  @@index([categoryId])
+}
+
+// 1 variante = 1 pointure + 1 couleur => 1 stock, 1 SKU
+model ProductVariant {
+  id        String   @id @default(cuid())
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  productId String
+  sku       String   @unique
+  size      String // ex: "42", "M", "10.5"
+  color     String
+  price     Decimal? @db.Decimal(10, 2) // override du basePrice si besoin
+  stock     Int      @default(0)
+  createdAt DateTime @default(now())
+
+  images         ProductImage[]
+  cartItems      CartItem[]
+  orderItems     OrderItem[]
+  stockMovements StockMovement[]
+
+  @@unique([productId, size, color])
+}
+
+// `variantId` optionnel : renseigné pour une photo spécifique à une couleur,
+// laissé vide pour une image générique du produit.
+model ProductImage {
+  id        String          @id @default(cuid())
+  url       String
+  alt       String?
+  position  Int             @default(0)
+  product   Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
+  productId String
+  variant   ProductVariant? @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  variantId String?
+
+  @@index([productId])
+}
+
+// ============================================================
+// PANIER
+// ============================================================
+
+model Cart {
+  id        String     @id @default(cuid())
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String     @unique
+  items     CartItem[]
+  updatedAt DateTime   @updatedAt
+}
+
+model CartItem {
+  id        String         @id @default(cuid())
+  cart      Cart           @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  cartId    String
+  product   Product        @relation(fields: [productId], references: [id])
+  productId String
+  variant   ProductVariant @relation(fields: [variantId], references: [id])
+  variantId String
+  quantity  Int            @default(1)
+
+  @@unique([cartId, variantId])
+}
+
+// ============================================================
+// COMMANDES & PAIEMENTS
+// ============================================================
+
+model Order {
+  id            String      @id @default(cuid())
+  orderNumber   String      @unique
+  user          User        @relation(fields: [userId], references: [id])
+  userId        String
+  status        OrderStatus @default(PENDING)
+  subtotal      Decimal     @db.Decimal(10, 2)
+  shippingCost  Decimal     @default(0) @db.Decimal(10, 2)
+  discountTotal Decimal     @default(0) @db.Decimal(10, 2)
+  total         Decimal     @db.Decimal(10, 2)
+  currency      String      @default("EUR")
+
+  // Référence vers le carnet d'adresses (peut devenir null si l'adresse est supprimée)
+  shippingAddress    Address? @relation("ShippingAddress", fields: [shippingAddressId], references: [id], onDelete: SetNull)
+  shippingAddressId  String?
+  // Snapshot figé de l'adresse de livraison au moment de la commande
+  shippingFullName   String
+  shippingLine1      String
+  shippingLine2      String?
+  shippingCity       String
+  shippingPostalCode String
+  shippingCountry    String
+  shippingPhone      String?
+
+  billingAddress    Address? @relation("BillingAddress", fields: [billingAddressId], references: [id], onDelete: SetNull)
+  billingAddressId  String?
+  // Snapshot figé de l'adresse de facturation au moment de la commande
+  billingFullName   String
+  billingLine1      String
+  billingLine2      String?
+  billingCity       String
+  billingPostalCode String
+  billingCountry    String
+  billingPhone      String?
+
+  coupon    Coupon?  @relation(fields: [couponId], references: [id])
+  couponId  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  items    OrderItem[]
+  payments Payment[]
+  returns  Return[]
+
+  @@index([userId])
+}
+
+// Snapshot des infos produit au moment de l'achat (prix, nom... peuvent changer après)
+model OrderItem {
+  id          String         @id @default(cuid())
+  order       Order          @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  orderId     String
+  product     Product        @relation(fields: [productId], references: [id])
+  productId   String
+  variant     ProductVariant @relation(fields: [variantId], references: [id])
+  variantId   String
+  productName String
+  size        String
+  color       String
+  unitPrice   Decimal        @db.Decimal(10, 2)
+  quantity    Int
+
+  stockMovement StockMovement?
+  returnItems   ReturnItem[]
+
+  @@index([orderId])
+}
+
+// Une commande peut avoir plusieurs tentatives de paiement (ex: carte refusée puis nouvel essai)
+model Payment {
+  id          String        @id @default(cuid())
+  order       Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  orderId     String
+  provider    String // "stripe", etc.
+  providerRef String? // id du PaymentIntent / checkout.session côté provider
+  status      PaymentStatus @default(PENDING)
+  amount      Decimal       @db.Decimal(10, 2)
+  currency    String        @default("EUR")
+  createdAt   DateTime      @default(now())
+
+  refunds Refund[]
+
+  @@index([orderId])
+}
+
+// ============================================================
+// AVIS & LISTE DE SOUHAITS
+// ============================================================
+
+model Review {
+  id        String   @id @default(cuid())
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  productId String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
+  rating    Int // 1 à 5
+  comment   String?
+  createdAt DateTime @default(now())
+
+  @@unique([productId, userId])
+}
+
+model WishlistItem {
+  id        String   @id @default(cuid())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  productId String
+  createdAt DateTime @default(now())
+
+  @@unique([userId, productId])
+}
+
+// ============================================================
+// PROMOTIONS
+// ============================================================
+
+// `percentOff` et `amountOff` sont mutuellement exclusifs : à valider côté application.
+model Coupon {
+  id             String    @id @default(cuid())
+  code           String    @unique
+  percentOff     Int?
+  amountOff      Decimal?  @db.Decimal(10, 2)
+  expiresAt      DateTime?
+  maxRedemptions Int?
+  timesRedeemed  Int       @default(0)
+  isActive       Boolean   @default(true)
+
+  orders Order[]
+}
+
+// ============================================================
+// STOCK
+// ============================================================
+
+enum StockMovementType {
+  RESTOCK // réassort fournisseur
+  SALE // vente (décrémente)
+  RETURN // retour client (incrémente)
+  ADJUSTMENT // correction manuelle (inventaire physique, casse...)
+  RESERVATION // réservation temporaire (panier, avant paiement)
+}
+
+// Historique des entrées/sorties de stock. `orderItemId` (unique) relie un
+// mouvement de type SALE à la ligne de commande qui l'a déclenché.
+model StockMovement {
+  id          String            @id @default(cuid())
+  variant     ProductVariant    @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  variantId   String
+  type        StockMovementType
+  quantity    Int // positif ou négatif selon le type
+  reason      String?
+  orderItem   OrderItem?        @relation(fields: [orderItemId], references: [id])
+  orderItemId String?           @unique
+  createdBy   User?             @relation(fields: [createdById], references: [id])
+  createdById String?
+  createdAt   DateTime          @default(now())
+
+  @@index([variantId])
+}
+
+// ============================================================
+// RETOURS & REMBOURSEMENTS
+// ============================================================
+
+enum ReturnStatus {
+  REQUESTED
+  APPROVED
+  REJECTED
+  RECEIVED
+  REFUNDED
+}
+
+enum ReturnReason {
+  DEFECTIVE
+  WRONG_SIZE
+  WRONG_ITEM
+  NOT_AS_DESCRIBED
+  CHANGED_MIND
+  OTHER
+}
+
+// Demande de retour initiée par le client pour une commande. Peut ne porter
+// que sur une partie des articles (voir `ReturnItem`).
+model Return {
+  id          String       @id @default(cuid())
+  order       Order        @relation(fields: [orderId], references: [id])
+  orderId     String
+  user        User         @relation(fields: [userId], references: [id])
+  userId      String
+  status      ReturnStatus @default(REQUESTED)
+  requestedAt DateTime     @default(now())
+  processedAt DateTime?
+
+  items  ReturnItem[]
+  refund Refund?
+
+  @@index([orderId])
+  @@index([userId])
+}
+
+// Ligne d'un retour : une quantité (partielle ou totale) d'un `OrderItem`.
+// `orderItemId` n'est volontairement pas unique pour permettre plusieurs
+// demandes de retour successives sur la même ligne de commande.
+model ReturnItem {
+  id          String       @id @default(cuid())
+  return      Return       @relation(fields: [returnId], references: [id], onDelete: Cascade)
+  returnId    String
+  orderItem   OrderItem    @relation(fields: [orderItemId], references: [id])
+  orderItemId String
+  quantity    Int
+  reason      ReturnReason
+  comment     String?
+
+  @@index([returnId])
+}
+
+// Remboursement effectif lié à un retour et rattaché au paiement d'origine.
+model Refund {
+  id          String       @id @default(cuid())
+  return      Return       @relation(fields: [returnId], references: [id], onDelete: Cascade)
+  returnId    String       @unique
+  payment     Payment      @relation(fields: [paymentId], references: [id])
+  paymentId   String
+  providerRef String? // id du refund côté provider (ex: re_xxx pour Stripe)
+  amount      Decimal      @db.Decimal(10, 2)
+  status      RefundStatus @default(PENDING)
+  createdAt   DateTime     @default(now())
+
+  @@index([paymentId])
+}
+
+enum RefundStatus {
+  PENDING
+  COMPLETED
+  FAILED
+}
+
+// ============================================================
+// NOTIFICATIONS & MARKETING
+// ============================================================
+
+enum NotificationType {
+  ORDER_CONFIRMED
+  ORDER_SHIPPED
+  ORDER_DELIVERED
+  ORDER_CANCELLED
+  RETURN_UPDATE
+  PROMOTION
+  STOCK_ALERT
+  GENERAL
+}
+
+// Notifications affichées côté client (suivi de commande, retour, promo...).
+model Notification {
+  id        String           @id @default(cuid())
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
+  type      NotificationType
+  title     String
+  message   String
+  isRead    Boolean          @default(false)
+  link      String? // ex: /orders/xyz
+  createdAt DateTime         @default(now())
+
+  @@index([userId, isRead])
+}
+
+// Inscription newsletter, indépendante d'un compte `User` (email seul possible).
+model Subscriber {
+  id             String    @id @default(cuid())
+  email          String    @unique
+  user           User?     @relation(fields: [userId], references: [id])
+  userId         String?   @unique
+  isActive       Boolean   @default(true)
+  subscribedAt   DateTime  @default(now())
+  unsubscribedAt DateTime?
+}
+
+// ============================================================
+// INTÉGRATIONS EXTERNES
+// ============================================================
+
+// Garde une trace des événements webhook déjà traités (ex: Stripe) pour éviter
+// tout retraitement en double, un même événement pouvant être renvoyé plusieurs fois.
+model WebhookEvent {
+  id          String    @id @default(cuid())
+  provider    String // "stripe", etc.
+  eventId     String    @unique // ex: evt_xxx
+  type        String // ex: "payment_intent.succeeded"
+  payload     Json?
+  receivedAt  DateTime  @default(now())
+  processedAt DateTime?
+
+  @@index([provider, type])
 }

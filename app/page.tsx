@@ -1,9 +1,11 @@
-import Image from "next/image";
+import Typo from './components/Typography'
 
 export default function Home() {
   return (
     <div>
-      <h1>Hello World</h1>
+      <Typo variant="h3" as="h3">
+        Moi ze veux les chaussures
+      </Typo>
     </div>
-  );
+  )
 }
