@@ -86,51 +86,66 @@ Le schéma Prisma (`prisma/schema.prisma`) couvre l'ensemble du domaine métier 
 
 ## Déploiement (Docker)
 
-L'application est conçue pour être déployée en conteneur Docker derrière un reverse proxy `nginx-proxy` + `acme-companion` (Let's Encrypt automatique), aux côtés d'autres sites hébergés sur le même serveur.
+L'application est conçue pour être déployée en conteneur Docker sur le serveur, avec le TLS géré par un **Nginx installé sur l'hôte** (pas en Docker) + **Certbot**, sur le modèle des autres sites déjà hébergés (`sites-available` / `sites-enabled`, un certificat par domaine). Le conteneur ne publie son port que sur `127.0.0.1`, jamais directement sur l'extérieur.
 
 Fichiers concernés :
 
 - `Dockerfile` : build multi-stage (deps → build Next.js standalone → image finale minimale sur `node:22-alpine`)
 - `.dockerignore` : exclut `node_modules`, `.next`, `.git`, `generated`, les fichiers `.env*`, etc. du contexte de build
-- `docker-compose.yml` : service `atchaussures`, branché sur le réseau Docker externe de `nginx-proxy`, avec les variables `VIRTUAL_HOST` / `VIRTUAL_PORT` / `LETSENCRYPT_HOST` / `LETSENCRYPT_EMAIL`
+- `docker-compose.yml` : service `atchaussures`, publie `127.0.0.1:3001` → port `3000` du conteneur
 - `.env.production.example` : modèle des variables d'environnement à fournir en production (à copier en `.env.production`, jamais commité)
 
 ### Étapes sur le serveur
 
-1. Vérifier le nom du réseau Docker externe utilisé par `nginx-proxy` :
-
-   ```bash
-   docker network ls
-   docker inspect <conteneur-nginx-proxy> --format '{{json .NetworkSettings.Networks}}'
-   ```
-
-   Ajuster le nom du réseau dans `docker-compose.yml` (section `networks`) s'il diffère de `nginx-proxy`.
-
-2. Cloner le repo dans `/srv/docker/atchaussures` :
+1. Cloner le repo dans `/srv/docker/atchaussures` :
 
    ```bash
    git clone https://github.com/EZ3ki33l/Shoes-store.git /srv/docker/atchaussures
    cd /srv/docker/atchaussures
    ```
 
-3. Créer `.env.production` à partir du modèle et renseigner les vraies valeurs (`DATABASE_URL` Neon, clés Clerk, `CLERK_WEBHOOKS_SIGNING_SECRET`) :
+2. Créer `.env.production` à partir du modèle et renseigner les vraies valeurs (`DATABASE_URL` Neon, clés Clerk, `CLERK_WEBHOOKS_SIGNING_SECRET`) :
 
    ```bash
    cp .env.production.example .env.production
    ```
 
-4. Dans `docker-compose.yml`, ajuster `LETSENCRYPT_EMAIL` avec une adresse email valide (utilisée par Let's Encrypt).
-
-5. Construire et démarrer le conteneur :
+3. Construire et démarrer le conteneur :
 
    ```bash
    docker compose up -d --build
    ```
 
-6. Vérifier les logs et l'obtention du certificat TLS :
+4. Créer la config Nginx du site (`/etc/nginx/sites-available/atchaussures.ez3ki33l.ovh`) :
+
+   ```nginx
+   server {
+       listen 80;
+       server_name atchaussures.ez3ki33l.ovh;
+
+       location / {
+           proxy_pass http://127.0.0.1:3001;
+           proxy_http_version 1.1;
+           proxy_set_header Host $host;
+           proxy_set_header X-Real-IP $remote_addr;
+           proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+           proxy_set_header X-Forwarded-Proto $scheme;
+       }
+   }
+   ```
+
+5. Activer le site et recharger Nginx :
 
    ```bash
-   docker compose logs -f
+   sudo ln -s /etc/nginx/sites-available/atchaussures.ez3ki33l.ovh /etc/nginx/sites-enabled/
+   sudo nginx -t
+   sudo systemctl reload nginx
+   ```
+
+6. Générer le certificat TLS avec Certbot (réécrit automatiquement la config pour ajouter le bloc HTTPS et la redirection 80→443) :
+
+   ```bash
+   sudo certbot --nginx -d atchaussures.ez3ki33l.ovh
    ```
 
 7. Configurer un endpoint webhook côté Clerk pointant vers `https://atchaussures.ez3ki33l.ovh/api/webhooks/clerk`, récupérer le signing secret et le renseigner dans `.env.production`, puis redémarrer le conteneur (`docker compose up -d`).
