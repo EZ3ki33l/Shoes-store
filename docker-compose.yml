@@ -10,18 +10,8 @@ services:
     restart: unless-stopped
     env_file:
       - .env.production
-    environment:
-      VIRTUAL_HOST: atchaussures.ez3ki33l.ovh
-      VIRTUAL_PORT: '3000'
-      LETSENCRYPT_HOST: atchaussures.ez3ki33l.ovh
-      LETSENCRYPT_EMAIL: r.rousset31@gmail.com
-    expose:
-      - '3000'
-    networks:
-      - nginx-proxy
-
-networks:
-  # Nom du réseau Docker externe déjà utilisé par nginx-proxy / acme-companion
-  # sur le serveur. Vérifier avec `docker network ls` et ajuster si besoin.
-  nginx-proxy:
-    external: true
+    ports:
+      # Port local (non exposé publiquement) : Nginx installé sur l'hôte
+      # fait le reverse proxy vers ce port, comme pour les autres sites
+      # (voir /etc/nginx/sites-available/).
+      - '127.0.0.1:3001:3000'
