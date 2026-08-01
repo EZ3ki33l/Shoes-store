@@ -9,6 +9,7 @@ import logo from '../public/logo-AT-Chaussures.svg'
 import logoDark from '../public/logo-AT-Chaussures-dark.svg'
 import Typo from './components/Typography'
 import Link from 'next/link'
+import AdminFooterLink from './components/adminFooterLink'
 
 const spaceGrotesk = Space_Grotesk({
   variable: '--font-space-grotesk',
@@ -75,10 +76,11 @@ export default function RootLayout({
             </div>
           </header>
           <main className="flex-1 py-10">{children}</main>
-          <footer className="flex h-20 items-center justify-center">
+          <footer className="flex h-20 items-center justify-center gap-4">
             <Typo variant="label" className="text-center">
               copyright © 2026 AT Chaussures
             </Typo>
+            <AdminFooterLink />
           </footer>
         </ClerkProvider>
       </body>
