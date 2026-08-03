@@ -7,3 +7,10 @@ export default function slugify(value: string) {
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/(^-|-$)/g, '')
 }
+
+export function buildSku(productSlug: string, size: string, color: string) {
+  return [productSlug, size, color]
+    .map((part) => slugify(part))
+    .join('-')
+    .toUpperCase()
+}
