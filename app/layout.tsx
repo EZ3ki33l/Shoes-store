@@ -10,6 +10,9 @@ import logoDark from '../public/logo-AT-Chaussures-dark.svg'
 import Typo from './components/Typography'
 import Link from 'next/link'
 import AdminFooterLink from './components/adminFooterLink'
+import { NextSSRPlugin } from '@uploadthing/react/next-ssr-plugin'
+import { extractRouterConfig } from 'uploadthing/server'
+import { ourFileRouter } from './api/uploadthing/core'
 
 const spaceGrotesk = Space_Grotesk({
   variable: '--font-space-grotesk',
@@ -49,6 +52,7 @@ export default function RootLayout({
     >
       <body className="mx-32 flex min-h-full flex-col">
         <ClerkProvider>
+          <NextSSRPlugin routerConfig={extractRouterConfig(ourFileRouter)} />
           <header className="flex h-16 items-center justify-between gap-4 py-4">
             <div className="flex items-center gap-3">
               <Link href="/">
