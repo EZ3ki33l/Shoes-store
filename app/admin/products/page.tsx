@@ -24,7 +24,15 @@ export default async function ProductPage({
         ...(categoryId ? { categoryId } : {}),
         ...(audience ? { audience: { has: audience as never } } : {}),
       },
-      include: { brand: true, category: true },
+      include: {
+        brand: true,
+        category: true,
+        variants: { select: { color: true, size: true, stock: true }, orderBy: { color: 'asc' } },
+        images: {
+          select: { url: true, alt: true, color: true, position: true },
+          orderBy: { position: 'asc' },
+        },
+      },
       orderBy: { name: 'asc' },
     }),
     prisma.brand.findMany({ orderBy: { name: 'asc' } }),
@@ -73,17 +81,46 @@ export default async function ProductPage({
       </form>
 
       <ProductList
-        products={products.map((product) => ({
-          id: product.id,
-          name: product.name,
-          audience: product.audience,
-          brand: {
-            id: product.brand.id,
-            name: product.brand.name,
-            logoUrl: product.brand.logoUrl,
-          },
-          category: { name: product.category.name },
-        }))}
+        products={products.map((product) => {
+          const colorsMap = new Map<
+            string,
+            { color: string; sizes: string[]; stock: number }
+          >()
+          for (const variant of product.variants) {
+            const existing = colorsMap.get(variant.color)
+            if (existing) {
+              existing.sizes.push(variant.size)
+              existing.stock += variant.stock
+            } else {
+              colorsMap.set(variant.color, {
+                color: variant.color,
+                sizes: [variant.size],
+                stock: variant.stock,
+              })
+            }
+          }
+          return {
+            id: product.id,
+            name: product.name,
+            description: product.description,
+            basePrice: product.basePrice.toString(),
+            audience: product.audience,
+            brand: {
+              id: product.brand.id,
+              name: product.brand.name,
+              logoUrl: product.brand.logoUrl,
+            },
+            category: { name: product.category.name },
+            images: product.images.map((img) => ({
+              url: img.url,
+              alt: img.alt,
+              color: img.color,
+            })),
+            colors: [...colorsMap.values()].sort((a, b) =>
+              a.color.localeCompare(b.color, 'fr'),
+            ),
+          }
+        })}
       />
     </div>
   )

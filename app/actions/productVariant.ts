@@ -17,7 +17,38 @@ const createProductVariantSchema = z.object({
 
 const updateProductVariantSchema = createProductVariantSchema.omit({ productId: true })
 
-type ActionResult = { ok: true } | { ok: false; error: string }
+const bulkCreateProductVariantsSchema = z.object({
+  productId: z.string().min(1, 'Produit requis'),
+  colors: z.array(z.string().min(1)).min(1, 'Au moins une couleur requise'),
+  sizes: z.array(z.string().min(1)).min(1, 'Au moins une pointure requise'),
+  /** Clé `${color}|${size}` → stock */
+  stocks: z.record(z.string(), z.coerce.number().int().min(0)).optional(),
+  defaultStock: z.coerce.number().int().min(0).default(0),
+})
+
+type ActionResult = { ok: true; created?: number; skipped?: number } | { ok: false; error: string }
+
+function normalizeLabel(value: string) {
+  return value.trim().replace(/\s+/g, ' ')
+}
+
+function uniqueNormalized(values: string[]) {
+  const seen = new Set<string>()
+  const result: string[] = []
+  for (const raw of values) {
+    const value = normalizeLabel(raw)
+    if (!value) continue
+    const key = value.toLowerCase()
+    if (seen.has(key)) continue
+    seen.add(key)
+    result.push(value)
+  }
+  return result
+}
+
+function stockKey(color: string, size: string) {
+  return `${color}|${size}`
+}
 
 function uniqueConstraintError(error: unknown): string | null {
   if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
@@ -52,14 +83,16 @@ export async function createProductVariant(input: {
     select: { slug: true },
   })
 
-  const sku = buildSku(product.slug, data.size, data.color)
+  const size = normalizeLabel(data.size)
+  const color = normalizeLabel(data.color)
+  const sku = buildSku(product.slug, size, color)
   try {
     await prisma.productVariant.create({
       data: {
         productId: data.productId,
         sku,
-        size: data.size,
-        color: data.color,
+        size,
+        color,
         price: data.price,
         stock: data.stock,
       },
@@ -72,6 +105,90 @@ export async function createProductVariant(input: {
   revalidatePath('/admin/products')
   revalidatePath(`/admin/products/${data.productId}/edit`)
   return { ok: true }
+}
+
+export async function bulkCreateProductVariants(input: {
+  productId: string
+  colors: string[]
+  sizes: string[]
+  stocks?: Record<string, number>
+  defaultStock?: number
+}): Promise<ActionResult> {
+  await requireAdminOrThrow()
+
+  const data = bulkCreateProductVariantsSchema.parse(input)
+  const colors = uniqueNormalized(data.colors)
+  const sizes = uniqueNormalized(data.sizes)
+
+  if (colors.length === 0 || sizes.length === 0) {
+    return { ok: false, error: 'Au moins une couleur et une pointure sont requises' }
+  }
+
+  const product = await prisma.product.findUniqueOrThrow({
+    where: { id: data.productId },
+    select: { slug: true },
+  })
+
+  const existing = await prisma.productVariant.findMany({
+    where: { productId: data.productId },
+    select: { size: true, color: true },
+  })
+  const existingKeys = new Set(
+    existing.map((v) => `${v.color.toLowerCase()}|${v.size.toLowerCase()}`),
+  )
+
+  const toCreate: {
+    productId: string
+    sku: string
+    size: string
+    color: string
+    stock: number
+  }[] = []
+  let skipped = 0
+
+  for (const color of colors) {
+    for (const size of sizes) {
+      const key = `${color.toLowerCase()}|${size.toLowerCase()}`
+      if (existingKeys.has(key)) {
+        skipped += 1
+        continue
+      }
+      const stock =
+        data.stocks?.[stockKey(color, size)] ??
+        data.stocks?.[stockKey(color.toLowerCase(), size)] ??
+        data.defaultStock
+      toCreate.push({
+        productId: data.productId,
+        sku: buildSku(product.slug, size, color),
+        size,
+        color,
+        stock,
+      })
+      existingKeys.add(key)
+    }
+  }
+
+  if (toCreate.length === 0) {
+    return {
+      ok: true,
+      created: 0,
+      skipped,
+    }
+  }
+
+  try {
+    const result = await prisma.productVariant.createMany({
+      data: toCreate,
+      skipDuplicates: true,
+    })
+    revalidatePath('/admin/products')
+    revalidatePath(`/admin/products/${data.productId}/edit`)
+    return { ok: true, created: result.count, skipped }
+  } catch (error) {
+    const message = uniqueConstraintError(error)
+    if (message) return { ok: false, error: message }
+    throw error
+  }
 }
 
 export async function updateProductVariant(
@@ -91,15 +208,17 @@ export async function updateProductVariant(
     where: { id },
     select: { product: { select: { slug: true } }, productId: true },
   })
-  const sku = buildSku(existing.product.slug, data.size, data.color)
+  const size = normalizeLabel(data.size)
+  const color = normalizeLabel(data.color)
+  const sku = buildSku(existing.product.slug, size, color)
 
   try {
     await prisma.productVariant.update({
       where: { id },
       data: {
         sku,
-        size: data.size,
-        color: data.color,
+        size,
+        color,
         price: data.price,
         stock: data.stock,
       },
