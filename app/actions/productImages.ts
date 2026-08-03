@@ -31,7 +31,7 @@ export async function createProductImage(input: {
   url: string
   alt?: string | null
   position?: number
-  variantId?: string | null
+  color?: string | null
 }) {
   await requireAdminOrThrow()
 
@@ -89,7 +89,6 @@ export async function deleteProductImages(id: string) {
   const image = await prisma.productImage.delete({ where: { id } })
   await deleteUploadThingFile(image.url)
 
-  await prisma.productImage.delete({ where: { id } })
   revalidatePath('/admin/products')
   revalidatePath(`/admin/products/${image.productId}/edit`)
 }
