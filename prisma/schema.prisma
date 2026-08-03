@@ -115,6 +115,13 @@ model Category {
   products Product[]
 }
 
+enum Audience {
+  HOMME
+  FEMME
+  ENFANT
+  UNISEXE
+}
+
 // Fiche produit générique (un modèle de chaussure). Le stock et le prix réel
 // se gèrent au niveau de `ProductVariant` (une taille + une couleur).
 model Product {
@@ -128,6 +135,7 @@ model Product {
   brandId     String
   category    Category @relation(fields: [categoryId], references: [id])
   categoryId  String
+  audience   Audience[] @default([UNISEXE])
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 

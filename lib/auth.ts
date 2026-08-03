@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation'
 import { prisma } from '@/lib/prisma'
 import { syncCurrentUser } from '@/app/actions/user'
 
-export async function getCurrenDbtUser() {
+export async function getCurrentDbtUser() {
   const { userId } = await auth()
   if (!userId) return null
 
@@ -13,10 +13,10 @@ export async function getCurrenDbtUser() {
   return syncCurrentUser()
 }
 
-export async function requireAdmin() {
-  const user = await getCurrenDbtUser()
+export async function requireAdminOrThrow() {
+  const user = await getCurrentDbtUser()
   if (!user || user.role !== 'ADMIN') {
-    redirect('/')
+    throw new Error('Unauthorized')
   }
   return user
 }
