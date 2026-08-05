@@ -1,6 +1,12 @@
 'use client'
 
+/**
+ * Formulaire création / édition d'une marque (nom + logo via UploadThing).
+ */
+
 import { createBrand, updateBrand } from '@/app/actions/brand'
+import { Field, FieldGroup, FieldLabel, FieldTitle } from '@/components/ui/field'
+import { Input } from '@/components/ui/input'
 import { UploadButton } from '@/lib/uploadthing'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
@@ -36,54 +42,60 @@ export default function BrandForm({ brand }: BrandFormProps) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-4 rounded-lg border p-4">
-      <div className="flex flex-col gap-1">
-        <label htmlFor="name" className="text-sm font-medium">
-          Nom de la marque
-        </label>
-        <input
-          id="name"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          required
-          className="rounded border px-3 py-2"
-        ></input>
-      </div>
-      <div className="flex flex-col gap-1">
-        <span className="text-sm font-medium">Logo</span>
-        {logoUrl ? (
-          <div className="flex items-center gap-3">
-            <Image
-              src={logoUrl}
-              alt=""
-              width={64}
-              height={64}
-              className="h-16 w-auto rounded object-contain"
-            />
-            <button
-              type="button"
-              onClick={() => setLogoUrl(null)}
-              className="rounded bg-purple-500 px-3 py-2 text-sm text-white"
-            >
-              Changer le logo
-            </button>
-          </div>
-        ) : (
-          <UploadButton
-            endpoint="brandLogo"
-            onClientUploadComplete={(res) => setLogoUrl(res[0]?.ufsUrl ?? null)}
-            onUploadError={(error) => alert(`Erreur d'upload : ${error.message}`)}
+    <form
+      onSubmit={handleSubmit}
+      autoComplete="off"
+      className="flex flex-col gap-4 rounded-lg border p-4"
+    >
+      <FieldGroup>
+        <Field>
+          <FieldLabel htmlFor="name">Nom de la marque</FieldLabel>
+          <Input
+            id="name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            required
           />
-        )}
-      </div>
+        </Field>
+        <Field>
+          <FieldTitle>Logo</FieldTitle>
+          {logoUrl ? (
+            <div className="flex items-center gap-3">
+              <Image
+                src={logoUrl}
+                alt=""
+                width={64}
+                height={64}
+                className="h-16 w-auto rounded object-contain"
+              />
+              <button
+                type="button"
+                onClick={() => setLogoUrl(null)}
+                className="bg-primary-500 text-primary-950 rounded px-3 py-2 text-sm"
+              >
+                Changer le logo
+              </button>
+            </div>
+          ) : (
+            <UploadButton
+              endpoint="brandLogo"
+              onClientUploadComplete={(res) => setLogoUrl(res[0]?.ufsUrl ?? null)}
+              onUploadError={(error) => alert(`Erreur d'upload : ${error.message}`)}
+            />
+          )}
+        </Field>
+      </FieldGroup>
 
-      <button
-        type="submit"
-        disabled={isPending || !name}
-        className="rounded bg-purple-700 px-4 py-2 text-white disabled:opacity-50"
-      >
-        {isPending ? 'Enregistrement ...' : isEditing ? 'Enregistrer' : 'Créer la marque'}
-      </button>
+      <div className="flex w-full justify-center">
+        <button
+          type="submit"
+          disabled={isPending || !name}
+          autoComplete="off"
+          className="bg-primary-500 text-primary-950 w-1/2 rounded px-4 py-2 disabled:opacity-50"
+        >
+          {isPending ? 'Enregistrement ...' : isEditing ? 'Enregistrer' : 'Créer la marque'}
+        </button>
+      </div>
     </form>
   )
 }

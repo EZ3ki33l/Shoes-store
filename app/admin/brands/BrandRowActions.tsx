@@ -1,5 +1,9 @@
 'use client'
 
+/**
+ * Actions d'une ligne marque : éditer ou supprimer (confirm + transition).
+ */
+
 import { deleteBrand } from '@/app/actions/brand'
 import IconButton from '@/app/components/IconButton'
 import { useTransition } from 'react'

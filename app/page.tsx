@@ -1,4 +1,9 @@
+/**
+ * Page d'accueil publique (placeholder).
+ */
+
 import Typo from './components/Typography'
+import Wordmark from './components/Wordmark'
 
 export default function Home() {
   return (

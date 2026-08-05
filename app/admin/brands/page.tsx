@@ -1,3 +1,7 @@
+/**
+ * Liste des marques + formulaire de création (admin).
+ */
+
 import Typo from '@/app/components/Typography'
 import { requireAdminOrThrow } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'

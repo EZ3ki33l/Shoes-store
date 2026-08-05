@@ -1,5 +1,10 @@
 'use server'
 
+/**
+ * Server Actions CRUD pour les produits.
+ * Réservées aux admins ; validation Zod + invalidation du cache /admin/products.
+ */
+
 import { requireAdminOrThrow } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import slugify from '@/lib/utils'

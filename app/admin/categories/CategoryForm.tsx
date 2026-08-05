@@ -1,6 +1,19 @@
 'use client'
 
+/**
+ * Formulaire création / édition d'une catégorie (parent optionnel = sous-catégorie).
+ */
+
 import { createCategory, updateCategory } from '@/app/actions/category'
+import { Field, FieldGroup, FieldLabel } from '@/components/ui/field'
+import { Input } from '@/components/ui/input'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { useRouter } from 'next/navigation'
 import { useState, useTransition } from 'react'
 
@@ -20,6 +33,11 @@ export default function CategoryForm({ category, mainCategories }: CategoryFormP
   const [isPending, startTransition] = useTransition()
   const isEditing = Boolean(category)
 
+  const parentItems = [
+    { label: 'Aucune catégorie principale', value: '' },
+    ...mainCategories.map((c) => ({ label: c.name, value: c.id })),
+  ]
+
   async function handleSubmit(e: React.SubmitEvent<HTMLFormElement>) {
     e.preventDefault()
     startTransition(async () => {
@@ -35,39 +53,51 @@ export default function CategoryForm({ category, mainCategories }: CategoryFormP
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-4 rounded-lg border p-4">
-      <div className="flex flex-col gap-1">
-        <label htmlFor="name">Nom</label>
-        <input
-          id="name"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          required
-          className="h-10 w-full rounded border px-3 py-2"
-        />
-      </div>
-      <div className="flex flex-col gap-1">
-        <label htmlFor="parentId">Catégorie principale ?</label>
-        <select
-          value={parentId}
-          onChange={(e) => setParentId(e.target.value)}
-          className="h-10 w-full rounded border px-3 py-2"
+    <form
+      onSubmit={handleSubmit}
+      autoComplete="off"
+      className="flex flex-col gap-4 rounded-lg border p-4"
+    >
+      <FieldGroup>
+        <Field>
+          <FieldLabel htmlFor="name">Nom</FieldLabel>
+          <Input
+            id="name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            required
+          />
+        </Field>
+        <Field>
+          <FieldLabel htmlFor="parentId">Catégorie principale ?</FieldLabel>
+          <Select
+            items={parentItems}
+            value={parentId}
+            onValueChange={(value) => setParentId(value ?? '')}
+          >
+            <SelectTrigger id="parentId">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {parentItems.map((item) => (
+                <SelectItem key={item.value || 'none'} value={item.value}>
+                  {item.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
+      </FieldGroup>
+      <div className="flex w-full justify-center">
+        <button
+          type="submit"
+          disabled={isPending || !name}
+          autoComplete="off"
+          className="bg-primary-500 text-primary-950 w-1/2 rounded px-4 py-2 disabled:opacity-50"
         >
-          <option value="">Aucune catégorie principale</option>
-          {mainCategories.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
-            </option>
-          ))}
-        </select>
+          {isPending ? 'Enregistrement ...' : isEditing ? 'Enregistrer' : 'Créer la catégorie'}
+        </button>
       </div>
-      <button
-        type="submit"
-        disabled={isPending || !name}
-        className="rounded bg-purple-700 px-4 py-2 text-white disabled:opacity-50"
-      >
-        {isPending ? 'Enregistrement ...' : isEditing ? 'Enregistrer' : 'Créer la catégorie'}
-      </button>
     </form>
   )
 }

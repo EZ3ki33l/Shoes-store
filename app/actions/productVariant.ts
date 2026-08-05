@@ -1,5 +1,11 @@
 'use server'
 
+/**
+ * Server Actions pour les variantes produit (taille × couleur).
+ * Gère création unitaire, création en masse (matrice), mise à jour et suppression.
+ * Les SKU sont dérivés du slug produit + taille + couleur.
+ */
+
 import { Prisma } from '@/generated/prisma/client'
 import { requireAdminOrThrow } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
@@ -26,12 +32,15 @@ const bulkCreateProductVariantsSchema = z.object({
   defaultStock: z.coerce.number().int().min(0).default(0),
 })
 
+/** Résultat uniforme des actions (succès avec compteurs ou erreur métier). */
 type ActionResult = { ok: true; created?: number; skipped?: number } | { ok: false; error: string }
 
+/** Nettoie les espaces autour et internes d'un libellé (taille / couleur). */
 function normalizeLabel(value: string) {
   return value.trim().replace(/\s+/g, ' ')
 }
 
+/** Déduplique une liste en ignorant la casse, tout en conservant le libellé d'origine. */
 function uniqueNormalized(values: string[]) {
   const seen = new Set<string>()
   const result: string[] = []
@@ -46,10 +55,15 @@ function uniqueNormalized(values: string[]) {
   return result
 }
 
+/** Clé composite utilisée dans la map des stocks de la matrice. */
 function stockKey(color: string, size: string) {
   return `${color}|${size}`
 }
 
+/**
+ * Traduit une erreur d'unicité Prisma (P2002) en message lisible.
+ * Retourne null si l'erreur n'est pas une contrainte d'unicité.
+ */
 function uniqueConstraintError(error: unknown): string | null {
   if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
     const target = error.meta?.target
@@ -129,6 +143,7 @@ export async function bulkCreateProductVariants(input: {
     select: { slug: true },
   })
 
+  // Variantes déjà en BDD — on ignore les doublons plutôt que d'échouer
   const existing = await prisma.productVariant.findMany({
     where: { productId: data.productId },
     select: { size: true, color: true },
@@ -146,6 +161,7 @@ export async function bulkCreateProductVariants(input: {
   }[] = []
   let skipped = 0
 
+  // Produit cartésien couleurs × pointures
   for (const color of colors) {
     for (const size of sizes) {
       const key = `${color.toLowerCase()}|${size.toLowerCase()}`
@@ -153,6 +169,7 @@ export async function bulkCreateProductVariants(input: {
         skipped += 1
         continue
       }
+      // Fallback : clé exacte → clé lowercased → stock par défaut
       const stock =
         data.stocks?.[stockKey(color, size)] ??
         data.stocks?.[stockKey(color.toLowerCase(), size)] ??
@@ -164,7 +181,7 @@ export async function bulkCreateProductVariants(input: {
         color,
         stock,
       })
-      existingKeys.add(key)
+      existingKeys.add(key) // évite les doublons dans le même batch
     }
   }
 

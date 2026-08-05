@@ -1,4 +1,9 @@
 'use client'
+
+/**
+ * Actions d'une ligne produit : éditer ou supprimer.
+ */
+
 import { deleteProduct } from '@/app/actions/product'
 import IconButton from '@/app/components/IconButton'
 import { Pencil, Trash2 } from 'lucide-react'

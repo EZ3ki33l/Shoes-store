@@ -1,5 +1,9 @@
 'use client'
 
+/**
+ * Actions d'une ligne catégorie : éditer ou supprimer.
+ */
+
 import { deleteCategory } from '@/app/actions/category'
 import IconButton from '@/app/components/IconButton'
 import { Pencil, Trash2 } from 'lucide-react'
