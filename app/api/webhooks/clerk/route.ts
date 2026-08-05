@@ -1,3 +1,8 @@
+/**
+ * Webhook Clerk (Svix) : synchronise les événements user.created / updated / deleted
+ * avec la table User Prisma.
+ */
+
 import { headers } from 'next/headers'
 import { Webhook } from 'svix'
 import { prisma } from '@/lib/prisma'
@@ -20,6 +25,7 @@ export async function POST(req: Request) {
   const body = await req.text()
   const wh = new Webhook(signingSecret)
 
+  // Vérifie la signature Svix avant de traiter le payload
   let event: any
   try {
     event = wh.verify(body, {
@@ -33,6 +39,7 @@ export async function POST(req: Request) {
 
   const { type, data } = event
 
+  // Upsert : crée à la première synchro, met à jour email / nom ensuite
   if (type === 'user.created' || type === 'user.updated') {
     const email = data.email_addresses?.[0]?.email_address ?? ''
     await prisma.user.upsert({

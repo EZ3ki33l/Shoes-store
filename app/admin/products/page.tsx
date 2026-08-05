@@ -1,3 +1,8 @@
+/**
+ * Catalogue admin des produits : création, filtres (marque / catégorie / audience)
+ * et liste groupée par marque.
+ */
+
 import Typo from '@/app/components/Typography'
 import { prisma } from '@/lib/prisma'
 import ProductForm from './ProductForm'
@@ -75,13 +80,14 @@ export default async function ProductPage({
             </option>
           ))}
         </select>
-        <button type="submit" className="rounded bg-neutral-200 px-4 py-2">
+        <button type="submit" className="rounded bg-muted px-4 py-2">
           Filtrer
         </button>
       </form>
 
       <ProductList
         products={products.map((product) => {
+          // Agrège les variantes en résumé par couleur (pointures + stock total)
           const colorsMap = new Map<
             string,
             { color: string; sizes: string[]; stock: number }

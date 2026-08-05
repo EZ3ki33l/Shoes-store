@@ -1,5 +1,9 @@
 'use server'
 
+/**
+ * Server Actions CRUD pour les marques (logo UploadThing optionnel).
+ */
+
 import { requireAdminOrThrow } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import slugify from '@/lib/utils'
@@ -46,6 +50,7 @@ export async function updateBrand(id: string, input: { name: string; logoUrl?: s
     },
   })
 
+  // Logo remplacé : supprimer l'ancien fichier UploadThing (best-effort)
   if (existing?.logoUrl && existing.logoUrl !== newLogoUrl) {
     const key = existing.logoUrl.split('/').pop()
     if (key) {

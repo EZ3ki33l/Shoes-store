@@ -1,6 +1,21 @@
 'use client'
 
+/**
+ * Formulaire création / édition d'un produit (prix, marque, catégorie, audience, publication).
+ */
+
 import { createProduct, updateProduct } from '@/app/actions/product'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Field, FieldGroup, FieldLabel, FieldLegend, FieldSet } from '@/components/ui/field'
+import { Input } from '@/components/ui/input'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { Textarea } from '@/components/ui/textarea'
 import { useRouter } from 'next/navigation'
 import { useState, useTransition } from 'react'
 
@@ -38,6 +53,16 @@ export default function ProductForm({ product, brands, categories }: ProductForm
     { value: 'UNISEXE', label: 'Unisexe' },
   ]
 
+  const brandItems = [
+    { label: 'Choisir une marque', value: '' },
+    ...brands.map((b) => ({ label: b.name, value: b.id })),
+  ]
+
+  const categoryItems = [
+    { label: 'Choisir une catégorie', value: '' },
+    ...categories.map((c) => ({ label: c.name, value: c.id })),
+  ]
+
   function resetForm() {
     setName('')
     setDescription('')
@@ -72,110 +97,118 @@ export default function ProductForm({ product, brands, categories }: ProductForm
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-4 rounded-lg border p-4">
-      <div className="flex flex-col gap-1">
-        <label htmlFor="name">Nom</label>
-        <input
-          id="name"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          required
-          className="h-10 w-full rounded border px-3 py-2"
-        />
-      </div>
-      <div className="flex flex-col gap-1">
-        <label htmlFor="description">Description</label>
-        <textarea
-          id="description"
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          className="w-full rounded border px-3 py-2"
-        />
-      </div>
-      <div className="flex flex-col gap-1">
-        <label htmlFor="price">Prix</label>
-        <input
-          id="price"
-          type="number"
-          step={'0.01'}
-          min="0"
-          value={price}
-          onChange={(e) => setPrice(e.target.value)}
-          required
-          className="h-10 w-full rounded border px-3 py-2"
-        />
-      </div>
-      <div className="flex flex-col gap-1">
-        <label htmlFor="brandId">Marque</label>
-        <select
-          value={brandId}
-          onChange={(e) => setBrandId(e.target.value)}
-          required
-          className="h-10 w-full rounded border px-3 py-2"
+    <form
+      onSubmit={handleSubmit}
+      autoComplete="off"
+      className="flex flex-col gap-4 rounded-lg border p-4"
+    >
+      <FieldGroup>
+        <Field>
+          <FieldLabel htmlFor="name">Nom</FieldLabel>
+          <Input id="name" value={name} onChange={(e) => setName(e.target.value)} required />
+        </Field>
+        <Field>
+          <FieldLabel htmlFor="description">Description</FieldLabel>
+          <Textarea
+            id="description"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+          />
+        </Field>
+        <Field>
+          <FieldLabel htmlFor="price">Prix</FieldLabel>
+          <Input
+            id="price"
+            type="number"
+            step="0.01"
+            min="0"
+            value={price}
+            onChange={(e) => setPrice(e.target.value)}
+            required
+          />
+        </Field>
+        <Field>
+          <FieldLabel htmlFor="brandId">Marque</FieldLabel>
+          <Select
+            items={brandItems}
+            value={brandId}
+            onValueChange={(value) => setBrandId(value ?? '')}
+            required
+          >
+            <SelectTrigger id="brandId">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {brandItems.map((item) => (
+                <SelectItem key={item.value || 'none'} value={item.value}>
+                  {item.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
+        <Field>
+          <FieldLabel htmlFor="categoryId">Catégorie</FieldLabel>
+          <Select
+            items={categoryItems}
+            value={categoryId}
+            onValueChange={(value) => setCategoryId(value ?? '')}
+            required
+          >
+            <SelectTrigger id="categoryId">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {categoryItems.map((item) => (
+                <SelectItem key={item.value || 'none'} value={item.value}>
+                  {item.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
+        <FieldSet>
+          <FieldLegend variant="label">Audience</FieldLegend>
+          <FieldGroup className="gap-2 rounded border px-3 py-2">
+            {AUDIENCE_OPTIONS.map((a) => (
+              <Field key={a.value} orientation="horizontal">
+                <Checkbox
+                  id={`audience-${a.value}`}
+                  checked={audience.includes(a.value)}
+                  onCheckedChange={(checked) =>
+                    setAudience((prev) =>
+                      checked ? [...prev, a.value] : prev.filter((v) => v !== a.value),
+                    )
+                  }
+                />
+                <FieldLabel htmlFor={`audience-${a.value}`} className="font-normal">
+                  {a.label}
+                </FieldLabel>
+              </Field>
+            ))}
+          </FieldGroup>
+        </FieldSet>
+        <Field orientation="horizontal">
+          <Checkbox
+            id="published"
+            checked={published}
+            onCheckedChange={(checked) => setPublished(checked === true)}
+          />
+          <FieldLabel htmlFor="published">Publié</FieldLabel>
+        </Field>
+      </FieldGroup>
+      <div className="flex w-full justify-center">
+        <button
+          type="submit"
+          disabled={
+            isPending || !name || !price || !brandId || !categoryId || audience.length === 0
+          }
+          autoComplete="off"
+          className="bg-primary-500 text-primary-950 w-1/2 rounded px-4 py-2 disabled:opacity-50"
         >
-          <option value="">Choisir une marque</option>
-          {brands.map((b) => (
-            <option key={b.id} value={b.id}>
-              {b.name}
-            </option>
-          ))}
-        </select>
+          {isPending ? 'Enregistrement ...' : isEditing ? 'Enregistrer' : 'Créer le produit'}
+        </button>
       </div>
-      <div className="flex flex-col gap-1">
-        <label htmlFor="categoryId">Catégorie</label>
-        <select
-          value={categoryId}
-          onChange={(e) => setCategoryId(e.target.value)}
-          required
-          className="h-10 w-full rounded border px-3 py-2"
-        >
-          <option value="">Choisir une catégorie</option>
-          {categories.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
-            </option>
-          ))}
-        </select>
-      </div>
-      <div className="flex flex-col gap-1">
-        <label htmlFor="audience">Audience</label>
-        <div className="rounded border px-3 py-2">
-          {AUDIENCE_OPTIONS.map((a) => (
-            <label key={a.value} className="flex items-center gap-4">
-              <input
-                type="checkbox"
-                value={a.value}
-                checked={audience.includes(a.value)}
-                className="h-4 rounded border px-3 py-2"
-                onChange={(e) =>
-                  setAudience((prev) =>
-                    e.target.checked ? [...prev, a.value] : prev.filter((v) => v !== a.value),
-                  )
-                }
-              />
-              {a.label}
-            </label>
-          ))}
-        </div>
-      </div>
-      <div className="flex items-center gap-8">
-        <label htmlFor="published">Publié</label>
-        <input
-          id="published"
-          type="checkbox"
-          checked={published}
-          onChange={(e) => setPublished(e.target.checked)}
-          required
-          className="h-4 rounded border px-3 py-2"
-        />
-      </div>
-      <button
-        type="submit"
-        disabled={isPending || !name || !price || !brandId || !categoryId || audience.length === 0}
-        className="rounded bg-purple-700 px-4 py-2 text-white disabled:opacity-50"
-      >
-        {isPending ? 'Enregistrement ...' : isEditing ? 'Enregistrer' : 'Créer le produit'}
-      </button>
     </form>
   )
 }

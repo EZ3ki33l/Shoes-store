@@ -1,5 +1,9 @@
 'use server'
 
+/**
+ * Server Actions CRUD pour les catégories (arbre parent / enfants via parentId).
+ */
+
 import { requireAdminOrThrow } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import slugify from '@/lib/utils'

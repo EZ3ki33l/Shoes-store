@@ -1,3 +1,8 @@
+/**
+ * Page d'édition complète d'un produit :
+ * infos générales, matrice de variantes, liste editable, variante isolée, images.
+ */
+
 import { requireAdminOrThrow } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { notFound } from 'next/navigation'
@@ -24,7 +29,9 @@ export default async function editProductPage({ params }: { params: Promise<{ id
 
   if (!product) notFound()
 
+  // Couleurs déjà présentes — proposées en raccourci dans VariantMatrix
   const existingColors = [...new Set(product.variants.map((v) => v.color))]
+  // Decimal Prisma → string pour les inputs contrôlés côté client
   const variantsForList = product.variants.map((v) => ({
     id: v.id,
     sku: v.sku,

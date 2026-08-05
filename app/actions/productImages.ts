@@ -1,5 +1,11 @@
 'use server'
 
+/**
+ * Server Actions pour les images produit.
+ * Synchronise la BDD Prisma et les fichiers UploadThing (suppression du fichier distant
+ * lors d'un remplacement ou d'une suppression).
+ */
+
 import { requireAdminOrThrow } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { revalidatePath } from 'next/cache'
@@ -16,6 +22,8 @@ const createProductImageSchema = z.object({
 
 const updateProductImageSchema = createProductImageSchema.omit({ productId: true })
 const utapi = new UTApi()
+
+/** Extrait la clé fichier depuis l'URL UploadThing et tente la suppression (best-effort). */
 async function deleteUploadThingFile(url: string) {
   const key = url.split('/').pop()
   if (!key) return
@@ -75,6 +83,7 @@ export async function updateProductImage(
     },
   })
 
+  // Remplacement d'URL : nettoyer l'ancien fichier distant pour éviter les orphelins
   if (existing.url !== data.url) {
     await deleteUploadThingFile(existing.url)
   }

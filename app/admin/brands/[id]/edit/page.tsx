@@ -1,3 +1,7 @@
+/**
+ * Page d'édition d'une marque (charge l'entité puis réutilise BrandForm).
+ */
+
 import { requireAdminOrThrow } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import BrandForm from '../../BrandForm'

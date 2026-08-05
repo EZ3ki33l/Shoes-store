@@ -1,6 +1,12 @@
 'use client'
 
+/**
+ * Tableau des variantes existantes, groupées par couleur.
+ * Permet l'édition inline du stock / prix et la suppression.
+ */
+
 import { deleteProductVariant, updateProductVariant } from '@/app/actions/productVariant'
+import { Input } from '@/components/ui/input'
 import { useMemo, useState, useTransition } from 'react'
 
 type Variant = {
@@ -23,6 +29,7 @@ export default function VariantList({ variants }: VariantListProps) {
   const [error, setError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
 
+  // Groupe par couleur, trie les pointures numériquement, puis trie les groupes A→Z
   const grouped = useMemo(() => {
     const map = new Map<string, Variant[]>()
     for (const variant of variants) {
@@ -89,7 +96,7 @@ export default function VariantList({ variants }: VariantListProps) {
     return (
       <section className="rounded-lg border p-4">
         <h2 className="text-lg font-semibold">Variantes existantes</h2>
-        <p className="mt-2 text-sm text-neutral-600">
+        <p className="mt-2 text-sm text-muted-foreground">
           Aucune variante pour ce produit. Utilisez la matrice ci-dessus pour en générer.
         </p>
       </section>
@@ -100,12 +107,12 @@ export default function VariantList({ variants }: VariantListProps) {
     <section className="flex flex-col gap-4 rounded-lg border p-4">
       <div>
         <h2 className="text-lg font-semibold">Variantes existantes</h2>
-        <p className="text-sm text-neutral-600">
+        <p className="text-sm text-muted-foreground">
           {variants.length} variante{variants.length > 1 ? 's' : ''} — stock et prix modifiables
         </p>
       </div>
 
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && <p className="text-sm text-danger-600">{error}</p>}
 
       <div className="flex flex-col gap-6">
         {grouped.map(([color, items]) => (
@@ -115,13 +122,13 @@ export default function VariantList({ variants }: VariantListProps) {
               <table className="min-w-full border-collapse text-sm">
                 <thead>
                   <tr>
-                    <th className="border bg-neutral-50 px-2 py-1 text-left font-medium">SKU</th>
-                    <th className="border bg-neutral-50 px-2 py-1 text-left font-medium">
+                    <th className="border bg-muted px-2 py-1 text-left font-medium">SKU</th>
+                    <th className="border bg-muted px-2 py-1 text-left font-medium">
                       Pointure
                     </th>
-                    <th className="border bg-neutral-50 px-2 py-1 text-left font-medium">Stock</th>
-                    <th className="border bg-neutral-50 px-2 py-1 text-left font-medium">Prix</th>
-                    <th className="border bg-neutral-50 px-2 py-1 text-left font-medium">
+                    <th className="border bg-muted px-2 py-1 text-left font-medium">Stock</th>
+                    <th className="border bg-muted px-2 py-1 text-left font-medium">Prix</th>
+                    <th className="border bg-muted px-2 py-1 text-left font-medium">
                       Actions
                     </th>
                   </tr>
@@ -135,13 +142,13 @@ export default function VariantList({ variants }: VariantListProps) {
                         <td className="border px-2 py-1">{variant.size}</td>
                         <td className="border px-2 py-1">
                           {isEditing ? (
-                            <input
+                            <Input
                               type="number"
                               min="0"
                               step="1"
                               value={stockDraft}
                               onChange={(e) => setStockDraft(e.target.value)}
-                              className="h-8 w-20 rounded border px-2"
+                              className="h-8 w-20"
                               disabled={isPending}
                             />
                           ) : (
@@ -150,20 +157,20 @@ export default function VariantList({ variants }: VariantListProps) {
                         </td>
                         <td className="border px-2 py-1">
                           {isEditing ? (
-                            <input
+                            <Input
                               type="number"
                               min="0"
                               step="0.01"
                               value={priceDraft}
                               onChange={(e) => setPriceDraft(e.target.value)}
                               placeholder="base"
-                              className="h-8 w-24 rounded border px-2"
+                              className="h-8 w-24"
                               disabled={isPending}
                             />
                           ) : variant.price != null ? (
                             `${variant.price} €`
                           ) : (
-                            <span className="text-neutral-400">base</span>
+                            <span className="text-muted-foreground">base</span>
                           )}
                         </td>
                         <td className="border px-2 py-1">
@@ -173,14 +180,16 @@ export default function VariantList({ variants }: VariantListProps) {
                                 <button
                                   type="button"
                                   disabled={isPending}
+                                  autoComplete="off"
                                   onClick={() => saveEdit(variant)}
-                                  className="rounded bg-purple-700 px-2 py-1 text-xs text-white disabled:opacity-50"
+                                  className="rounded bg-primary-500 px-2 py-1 text-xs text-primary-950 disabled:opacity-50"
                                 >
                                   Sauver
                                 </button>
                                 <button
                                   type="button"
                                   disabled={isPending}
+                                  autoComplete="off"
                                   onClick={cancelEdit}
                                   className="rounded border px-2 py-1 text-xs disabled:opacity-50"
                                 >
@@ -201,7 +210,7 @@ export default function VariantList({ variants }: VariantListProps) {
                               type="button"
                               disabled={isPending}
                               onClick={() => handleDelete(variant.id)}
-                              className="rounded border border-red-200 px-2 py-1 text-xs text-red-700 disabled:opacity-50"
+                              className="rounded border border-danger-200 px-2 py-1 text-xs text-danger-700 disabled:opacity-50"
                             >
                               Supprimer
                             </button>
